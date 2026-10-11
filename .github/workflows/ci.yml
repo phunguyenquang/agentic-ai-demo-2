@@ -1,0 +1,95 @@
+# CI tối thiểu — độc lập tech stack.
+# Mỗi job gọi một script trong scripts/ci/. Khi chốt stack, SA chạy /sa-stack-setup để:
+#   - thay khối STACK-BINDING trong scripts/ci/*.sh
+#   - thay khối STACK-SETUP dưới đây bằng bước cài runtime + cache
+# Review và merge diễn ra ở local (scripts/merge-local.sh chạy cùng các script này trước khi merge — ADR-003).
+# CI ở đây là lớp xác nhận sau khi push main. Giữ nguyên `name:` của job.
+#
+# Biến repo (Settings → Secrets and variables → Actions → Variables):
+#   CI_STRICT=1     → script chưa cấu hình stack sẽ FAIL thay vì cảnh báo (bật sau khi gắn stack)
+#   TRACE_STRICT=1  → lỗi truy vết làm fail job trace-check
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI_STRICT: ${{ vars.CI_STRICT || '0' }}
+  TRACE_STRICT: ${{ vars.TRACE_STRICT || '0' }}
+
+jobs:
+  lint:
+    name: ci-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # >>> STACK-SETUP (xem .claude/skills/sa-stack-setup/stack-recipes.md)
+      # - uses: actions/setup-node@v4
+      #   with: { node-version-file: '.nvmrc', cache: 'npm' }
+      # <<< STACK-SETUP
+      - name: Lint
+        run: bash scripts/ci/lint.sh
+
+  test:
+    name: ci-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # >>> STACK-SETUP
+      # <<< STACK-SETUP
+      - name: Test
+        run: bash scripts/ci/test.sh
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  build:
+    name: ci-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # >>> STACK-SETUP
+      # <<< STACK-SETUP
+      - name: Build
+        run: bash scripts/ci/build.sh
+
+  trace:
+    name: trace-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # cần lịch sử commit để liên kết US → commit/merge
+      - name: Kiểm tra truy vết và sinh ma trận
+        run: bash scripts/trace-check.sh --matrix
+      - name: Đưa ma trận vào Summary
+        if: always()
+        run: |
+          if [ -f docs/traceability.md ]; then cat docs/traceability.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload ma trận truy vết
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: traceability
+          path: docs/traceability.md
+          if-no-files-found: ignore
+          retention-days: 30

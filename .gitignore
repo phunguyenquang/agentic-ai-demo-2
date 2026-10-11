@@ -1,0 +1,25 @@
+# Secret — không bao giờ commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Claude Code — cấu hình cá nhân
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Kết quả CI/test
+test-results/
+coverage/
+
+# Hệ điều hành / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+
+# >>> STACK: bổ sung khi chốt stack (node_modules/, target/, bin/, obj/, .venv/, dist/ …)

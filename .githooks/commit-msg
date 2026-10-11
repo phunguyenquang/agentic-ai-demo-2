@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Git hook commit-msg: kiểm tra định dạng commit và trailer vai (chế độ một người, ADR-002/ADR-003).
+#   Dòng đầu:  <type>(<ID>): <mô tả>     type ∈ feat fix refactor test perf docs chore ci merge
+#              merge: chỉ do scripts/merge-local.sh tạo (kèm trailer Review-Record)
+#              feat/fix/refactor/test/perf bắt buộc có ID US-/CR-/BUG-
+#   Trailer:   Role: <PM|BA|SA|Dev|Test>
+#              Agent: <analysis-agent|planner-agent|architect-agent|coder-agent|reviewer-agent|test-agent|none>
+set -uo pipefail
+
+msg="$(grep -v '^#' "$1" | sed 's/\r$//')"
+subject="$(printf '%s\n' "$msg" | sed -n '/[^[:space:]]/{p;q;}')"
+
+# Bỏ qua commit do git tạo
+case "$subject" in
+  "Merge "*|"Revert "*|"fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
+esac
+
+errors=()
+re_subject='^(feat|fix|refactor|test|perf|docs|chore|ci|merge)(\((US|CR|BUG|ADR|REQ)-[0-9]{3,}\))?: .+'
+re_needs_id='^(feat|fix|refactor|test|perf)\((US|CR|BUG)-[0-9]{3,}\): '
+re_role='^Role:[[:space:]]*(PM|BA|SA|Dev|Test)[[:space:]]*$'
+re_agent='^Agent:[[:space:]]*(analysis-agent|planner-agent|architect-agent|coder-agent|reviewer-agent|test-agent|none)[[:space:]]*$'
+
+if ! [[ "$subject" =~ $re_subject ]]; then
+  errors+=("Dòng đầu phải dạng '<type>(<ID>): <mô tả>' — vd 'feat(US-012): add password reset'. Hiện tại: '$subject'")
+else
+  type="${subject%%[(:]*}"
+  case "$type" in
+    feat|fix|refactor|test|perf)
+      [[ "$subject" =~ $re_needs_id ]] || errors+=("Commit '$type' bắt buộc có ID US-xxx / CR-xxx / BUG-xxx trong ngoặc.") ;;
+  esac
+fi
+printf '%s\n' "$msg" | grep -Eq "$re_role"  || errors+=("Thiếu trailer 'Role: <PM|BA|SA|Dev|Test>' (vai bạn đang đóng).")
+printf '%s\n' "$msg" | grep -Eq "$re_agent" || errors+=("Thiếu trailer 'Agent: <tên agent|none>' (agent đã tạo nội dung).")
+
+if [ "${#errors[@]}" -gt 0 ]; then
+  echo "⛔ Commit message chưa đúng quy ước (CLAUDE.md mục 5):" >&2
+  for e in "${errors[@]}"; do echo "   - $e" >&2; done
+  echo "   Ví dụ: git commit -m \"docs(US-012): add acceptance criteria\" --trailer \"Role: BA\" --trailer \"Agent: analysis-agent\"" >&2
+  exit 1
+fi
+exit 0

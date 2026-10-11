@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Git hook pre-commit (chế độ một người, thay branch protection):
+#  1. Chặn commit trực tiếp trên main/master   (ngoại lệ khởi tạo repo: ALLOW_MAIN_COMMIT=1)
+#  2. Chặn file thuộc luật deny trong .claude/sensitive-paths.txt (secret, khoá…)
+#  3. Quét secret trong phần thay đổi: gitleaks nếu có, không thì mẫu cơ bản
+# Cài: bash scripts/setup/install-git-hooks.sh
+set -uo pipefail
+# shellcheck source=_lib.sh
+source "$(dirname "$0")/_lib.sh"
+
+fail=0
+
+branch="$(current_branch)"
+if [[ "$branch" =~ ^(main|master)$ ]] && [ "${ALLOW_MAIN_COMMIT:-0}" != "1" ]; then
+  echo "⛔ Không commit trực tiếp trên '$branch'. Tạo nhánh trước, ví dụ:" >&2
+  echo "   git switch -c feature/US-xxx-mo-ta   (hoặc cr/CR-xxx-…, fix/BUG-xxx-…, chore/…)" >&2
+  echo "   Ngoại lệ có chủ đích (commit khởi tạo repo): ALLOW_MAIN_COMMIT=1 git commit …" >&2
+  exit 1
+fi
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if [ "$(sensitive_action "$f")" = "deny" ]; then
+    echo "⛔ File bị cấm commit (luật deny trong .claude/sensitive-paths.txt): $f" >&2
+    echo "   Bỏ khỏi stage: git restore --staged \"$f\"  — và kiểm tra .gitignore." >&2
+    fail=1
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+if command -v gitleaks >/dev/null 2>&1; then
+  if gitleaks git --help >/dev/null 2>&1; then
+    gitleaks git --staged --redact --no-banner >/dev/null 2>&1 || { echo "⛔ gitleaks phát hiện secret trong thay đổi (chạy: gitleaks git --staged -v)." >&2; fail=1; }
+  else
+    gitleaks protect --staged --redact --no-banner >/dev/null 2>&1 || { echo "⛔ gitleaks phát hiện secret trong thay đổi (chạy: gitleaks protect --staged -v)." >&2; fail=1; }
+  fi
+else
+  pat='^\+.*(-----BEGIN ([A-Z]+ )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|xox[baprs]-[A-Za-z0-9-]{10,})'
+  if git diff --cached -U0 --no-color | grep -Eq "$pat"; then
+    echo "⛔ Phát hiện chuỗi giống secret (private key / AWS key / GitHub token / Slack token) trong thay đổi." >&2
+    fail=1
+  fi
+fi
+
+exit "$fail"

@@ -1,0 +1,10 @@
+
+# Dòng đầu: <type>(<ID>): <mô tả tiếng Anh>   vd: docs(US-012): add acceptance criteria
+#   type: feat fix refactor test perf (bắt buộc ID US/CR/BUG) · docs chore ci (ID tuỳ chọn, có thể ADR/REQ)
+#   (merge: chỉ do scripts/merge-local.sh tạo)
+#
+# Hai dòng cuối bắt buộc (git hook commit-msg kiểm tra) — điền vai và agent:
+Role:
+Agent: none
+# Role:  PM | BA | SA | Dev | Test
+# Agent: analysis-agent | planner-agent | architect-agent | coder-agent | reviewer-agent | test-agent | none

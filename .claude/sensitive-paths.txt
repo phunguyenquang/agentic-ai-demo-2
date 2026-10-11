@@ -1,0 +1,63 @@
+# Danh sách vùng nhạy cảm — owner: SA. Hook .claude/hooks/guard-sensitive-paths.sh đọc file này.
+# Cú pháp mỗi dòng:  <allow|ask|deny>  <glob>   # ghi chú
+#  - Đường dẫn tương đối so với gốc repo, dùng dấu /. So khớp không phân biệt hoa thường.
+#  - Dấu * khớp mọi ký tự KỂ CẢ dấu /  (vd *auth* khớp src/modules/auth/login.ts).
+#  - Luật khớp ĐẦU TIÊN thắng → đặt allow lên trước deny/ask.
+#  - Đây là danh sách vùng nhạy cảm DUY NHẤT (chế độ một người, không dùng CODEOWNERS). Được đọc bởi:
+#      hook Claude (guard-sensitive-paths), git hook pre-commit (luật deny), scripts/merge-local.sh + audit-main.sh (ask → bắt buộc SA gate).
+#  - Khi chốt stack, SA bổ sung đường dẫn cụ thể (xem skill sa-stack-setup).
+
+# --- Mẫu biến môi trường (được phép) ---
+allow  .env.example                    # không chứa giá trị thật
+allow  *.env.example
+
+# --- Cấm sửa (đặt trước các allow rộng bên dưới) ---
+deny   .env                            # secret
+deny   .env.*
+deny   */.env
+deny   */.env.*
+deny   *.pem
+deny   *.key
+deny   *id_rsa*
+deny   secrets/*
+
+# --- Ngoại lệ được phép ---
+allow  docs/*                          # tài liệu: không coi là vùng code nhạy cảm
+allow  *.test.*                        # file test (vd auth.test.ts) không bị hỏi
+allow  *.spec.*
+allow  *_test.*                        # Go, Python
+allow  *Test.java                      # Java
+allow  *Test.kt
+allow  *Tests.cs                       # .NET
+allow  test/*
+allow  tests/*
+allow  */test/*
+allow  */tests/*
+allow  */__tests__/*
+
+# --- Cấu hình governance: cần SA ---
+ask    CLAUDE.md                        # quy tắc cho mọi phiên AI
+ask    .claude/settings.json
+ask    .claude/hooks/*
+ask    .claude/sensitive-paths.txt
+ask    .github/workflows/*              # CI
+ask    .githooks/*                      # git hooks thay branch protection
+
+# --- Code nhạy cảm (P0) ---
+ask    *auth*                           # authentication / authorization
+ask    *login*
+ask    *password*
+ask    *permission*
+ask    *security*
+ask    *crypto*
+ask    *encrypt*
+ask    *payment*
+ask    *billing*
+ask    *migration*                      # thay đổi schema/dữ liệu
+ask    */migrations/*
+ask    *schema*                         # DB schema / API contract (P1)
+ask    *openapi*
+ask    infra/*                          # hạ tầng
+ask    deploy/*
+ask    *Dockerfile*
+ask    *docker-compose*

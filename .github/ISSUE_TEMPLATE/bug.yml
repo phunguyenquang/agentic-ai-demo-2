@@ -1,0 +1,60 @@
+name: Bug
+description: Báo lỗi. Dev xử lý trên nhánh fix/BUG-<số issue>-... và /dev-implement BUG-<số issue>.
+title: "[BUG] <mô tả ngắn>"
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ID bug = `BUG-` + số issue (3 chữ số, vd issue #31 → BUG-031). Không đưa dữ liệu thật của khách vào đây.
+  - type: input
+    id: related
+    attributes:
+      label: Story / test case liên quan
+      placeholder: "US-012, TC-US012-03"
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Mức nghiêm trọng
+      options:
+        - S1 — chặn nghiệp vụ / mất dữ liệu / bảo mật
+        - S2 — sai chức năng chính, có cách né
+        - S3 — sai chức năng phụ
+        - S4 — giao diện / chính tả
+    validations:
+      required: true
+  - type: dropdown
+    id: env
+    attributes:
+      label: Môi trường
+      options: ["Local", "Dev", "Staging", "UAT", "Production"]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Các bước tái hiện
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Kết quả mong đợi
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Kết quả thực tế (log, ảnh chụp)
+    validations:
+      required: true
+  - type: checkboxes
+    id: flags
+    attributes:
+      label: Phân loại thêm
+      options:
+        - label: Phát hiện ở UAT (gắn label found-in-uat)
+        - label: Lỗi trong code AI sinh, phát hiện trong cùng đợt xây dựng (ghi ai-rework)

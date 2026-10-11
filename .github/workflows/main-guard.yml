@@ -1,0 +1,64 @@
+# Kiểm soát phát hiện (detective control) — review local, không Pull Request (ADR-003).
+# Sau mỗi lần push main, chạy lại scripts/audit-main.sh trên các commit mới:
+#   - mỗi commit first-parent phải là merge do scripts/merge-local.sh tạo (trailer Review-Record);
+#   - review record tại commit nhánh phải hợp lệ theo mức rủi ro (sign-off, AI-REVIEW / SA-GATE còn hiệu lực).
+# Bắt được trường hợp hook trên máy bị bỏ qua (--no-verify, ALLOW_MAIN_PUSH).
+# Vi phạm → mở issue label process-violation. Vai PM xử lý trong health check (/pm-track).
+
+name: Main Guard
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    name: main-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Audit các commit mới trên main
+        id: audit
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          CREATED: ${{ github.event.created }}
+        run: |
+          git branch -f main "$AFTER" 2>/dev/null || true
+          if [ "$CREATED" = "true" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            RANGE="$AFTER"
+          else
+            RANGE="$BEFORE..$AFTER"
+          fi
+          echo "range=$RANGE" >> "$GITHUB_OUTPUT"
+          set +e
+          bash scripts/audit-main.sh "$RANGE" | tee audit.log
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          cat audit.log >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+      - name: Mở issue khi có vi phạm
+        if: steps.audit.outputs.code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RANGE: ${{ steps.audit.outputs.range }}
+        run: |
+          {
+            echo "Workflow **main-guard** phát hiện thay đổi trên \`main\` chưa đúng quy trình (người push: @${{ github.actor }}, range \`$RANGE\`)."
+            echo
+            grep '❌' audit.log | sed 's/^/- /'
+            echo
+            echo "Lần chạy: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo "Việc cần làm (vai PM): ghi lý do trong issue; chạy bổ sung gate còn thiếu (/dev-review, /sa-gate) trên một nhánh sửa và merge lại bằng scripts/merge-local.sh nếu cần; ghi ISS vào RAID. Đóng issue sau khi xử lý."
+          } > body.md
+          gh issue create --title "[process] Vi phạm quy trình trên main (${GITHUB_SHA::7})" --body-file body.md --label process-violation \
+            || gh issue create --title "[process] Vi phạm quy trình trên main (${GITHUB_SHA::7})" --body-file body.md
+          echo "::warning::Đã mở issue process-violation"

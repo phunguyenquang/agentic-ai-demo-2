@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Git hook pre-push (chế độ một người, review local — ADR-003):
+#  - Push lên main/master: chỉ cho phép khi mọi commit mới vào main qua scripts/merge-local.sh
+#    (kiểm tra bằng scripts/audit-main.sh). Chặn xoá main và force push lên main.
+#  - Nhánh khác: cho phép (backup); cảnh báo khi force push.
+# Cài: bash scripts/setup/install-git-hooks.sh
+# Ngoại lệ có chủ đích (push khởi tạo repo): ALLOW_MAIN_PUSH=1 git push -u origin main
+# Hook trên máy có thể bị bỏ qua (--no-verify); workflow main-guard trên GitHub chạy lại cùng kiểm tra.
+
+PROTECTED_RE='^refs/heads/(main|master)$'
+ROOT="$(git rev-parse --show-toplevel)"
+zero="0000000000000000000000000000000000000000"
+status=0
+
+while read -r _local_ref local_sha remote_ref remote_sha; do
+  [ -z "${remote_ref:-}" ] && continue
+  if [[ "$remote_ref" =~ $PROTECTED_RE ]]; then
+    name="${remote_ref#refs/heads/}"
+    if [ "$local_sha" = "$zero" ]; then
+      echo "⛔ Không được xoá nhánh $name trên remote." >&2; status=1; continue
+    fi
+    [ "${ALLOW_MAIN_PUSH:-0}" = "1" ] && continue
+    if [ "$remote_sha" != "$zero" ]; then
+      if ! git cat-file -e "$remote_sha" 2>/dev/null; then
+        echo "⛔ main trên remote có commit lạ với máy này — chạy 'git fetch' và kiểm tra trước khi push." >&2; status=1; continue
+      fi
+      if ! git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+        echo "⛔ Không force push lên $name." >&2; status=1; continue
+      fi
+      range="$remote_sha..$local_sha"
+    else
+      range="$local_sha"
+    fi
+    echo "🔎 pre-push: kiểm tra các commit mới trên $name ($range)…" >&2
+    if ! bash "$ROOT/scripts/audit-main.sh" "$range" >&2; then
+      echo "⛔ Có thay đổi trên $name không qua scripts/merge-local.sh hoặc review record chưa đạt. Không push." >&2
+      echo "   Sửa: đưa thay đổi về nhánh, review, rồi merge bằng 'bash scripts/merge-local.sh <nhánh>'." >&2
+      status=1
+    fi
+    continue
+  fi
+  if [ "$remote_sha" != "$zero" ] && [ "$local_sha" != "$zero" ] && git cat-file -e "$remote_sha" 2>/dev/null; then
+    if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+      echo "⚠️  Đang force push lên ${remote_ref#refs/heads/} (ghi đè lịch sử nhánh của bạn)." >&2
+    fi
+  fi
+done
+exit "$status"

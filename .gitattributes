@@ -1,0 +1,10 @@
+# Chuẩn hoá xuống dòng LF — hook và script bash hỏng nếu bị đổi sang CRLF trên Windows
+* text=auto eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.txt text eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary

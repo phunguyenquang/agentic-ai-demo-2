@@ -1,0 +1,59 @@
+name: Change request (yêu cầu thay đổi)
+description: Ghi nhận yêu cầu thay đổi từ khách hàng. BA sẽ phân tích bằng /ba-cr #<số issue>.
+title: "[CR] <tóm tắt thay đổi>"
+labels: ["type:cr"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ghi nhận trung thực yêu cầu của khách. Không phân tích ở đây — BA chạy `/ba-cr #<số issue này>` để tạo file CR có phân tích tác động.
+  - type: input
+    id: requested_by
+    attributes:
+      label: Người yêu cầu (phía khách)
+      placeholder: "Nguyễn Văn A — Product Owner"
+    validations:
+      required: true
+  - type: input
+    id: received
+    attributes:
+      label: Ngày nhận
+      placeholder: "2026-10-20"
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Kênh nhận
+      options:
+        - Email
+        - Họp / biên bản
+        - Chat
+        - Khác
+    validations:
+      required: true
+  - type: textarea
+    id: request
+    attributes:
+      label: Nội dung yêu cầu (nguyên văn hoặc tóm tắt trung thực)
+      description: Dán nguyên văn nếu có. Đính kèm ảnh/file nếu khách gửi.
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Lý do / giá trị nghiệp vụ (nếu khách nêu)
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Mức khẩn theo khách
+      options:
+        - Bình thường — phân tích theo SLA (docs/process/change-request.md)
+        - Khẩn — phân loại trong ngày
+    validations:
+      required: true
+  - type: input
+    id: related
+    attributes:
+      label: Liên quan (nếu biết)
+      placeholder: "REQ-004, US-012, màn hình đăng nhập"
